@@ -25,7 +25,7 @@
     "yaml": "^2.0.0"
   },
   "devDependencies": {
-    "@tsconfig/recommended": "^1.0.1",
+    "@tsconfig/recommended": "^1.0.2",
     "@types/eslint": "^8.2.2",
     "@types/eslint-plugin-prettier": "^3.1.0",
     "@types/mz": "^2.7.2",
