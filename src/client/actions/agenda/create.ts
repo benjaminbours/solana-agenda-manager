@@ -9,8 +9,8 @@ import {
   // create_event,
   create_agenda,
   // reportGreetings,
-} from './scheduler';
-import {getPayer} from './utils';
+} from '../../scheduler';
+import {getPayer} from '../../utils';
 
 async function main() {
   // Establish connection to the cluster
@@ -19,11 +19,11 @@ async function main() {
   // Check if the program has been deployed
   await checkProgram(connection);
 
-  const tx = await create_agenda(connection, 'my-first-agenda', payer);
-  console.log(tx);
+  const id = Date.now();
+  console.log(id);
 
-  // Find out how many times that account has been greeted
-  // await reportGreetings();
+  const tx = await create_agenda(connection, id, 'my-first-agenda', payer);
+  console.log(tx);
 
   console.log('Success');
 }

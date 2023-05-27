@@ -1,6 +1,6 @@
-import {AgendaCoordinator} from './coordinators/AgendaCoordinator';
-import {establishConnection, checkProgram, create_agenda} from './scheduler';
-import {getPayer} from './utils';
+import {AgendaCoordinator} from '../../coordinators/AgendaCoordinator';
+import {establishConnection, checkProgram, update_agenda} from '../../scheduler';
+import {getPayer} from '../../utils';
 
 async function main() {
   // Establish connection to the cluster
