@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
+import * as anchor from '@project-serum/anchor';
 import {
   Keypair,
   Connection,
@@ -89,16 +90,16 @@ export async function checkProgram(connection: Connection): Promise<void> {
   console.log(`Using program ${PROGRAM_KEYPAIR.publicKey.toBase58()}`);
 }
 
-// function numToUint8Array(num: number) {
-//   const arr = new Uint8Array(8);
+function numToUint8Array(num: number) {
+  const arr = new Uint8Array(8);
 
-//   for (let i = 0; i < 8; i++) {
-//     arr[i] = num % 256;
-//     num = Math.floor(num / 256);
-//   }
+  for (let i = 0; i < 8; i++) {
+    arr[i] = num % 256;
+    num = Math.floor(num / 256);
+  }
 
-//   return arr;
-// }
+  return arr;
+}
 
 // function uint8ArrayToNumV1(arr) {
 //   let num = 0;
@@ -158,22 +159,25 @@ enum InstructionVariant {
 
 export async function create_agenda(
   connection: Connection,
+  id: number,
   name: string,
   payer: Keypair,
 ): Promise<string> {
   console.log('create agenda');
-  const agenda = new Agenda(name, payer.publicKey);
+  const agenda = new Agenda(id, name, payer.publicKey);
   const buffer = agenda.serialize(InstructionVariant.CreateAgenda);
 
   const [pda] = PublicKey.findProgramAddressSync(
-    [payer.publicKey.toBuffer(), Buffer.from(agenda.name)],
+    [payer.publicKey.toBuffer(), numToUint8Array(agenda.id)],
     PROGRAM_KEYPAIR.publicKey,
   );
 
-  const [pdaCounter] = PublicKey.findProgramAddressSync(
-    [pda.toBuffer(), Buffer.from('event')],
-    PROGRAM_KEYPAIR.publicKey,
-  );
+  // const [pdaCounter] = PublicKey.findProgramAddressSync(
+  //   [pda.toBuffer(), Buffer.from('event')],
+  //   PROGRAM_KEYPAIR.publicKey,
+  // );
+
+  console.log(buffer);
 
   const instruction = new TransactionInstruction({
     keys: [
@@ -187,16 +191,122 @@ export async function create_agenda(
         isSigner: false,
         isWritable: true,
       },
-      {
-        pubkey: pdaCounter,
-        isSigner: false,
-        isWritable: true,
-      },
+      // {
+      //   pubkey: pdaCounter,
+      //   isSigner: false,
+      //   isWritable: true,
+      // },
       {
         pubkey: SystemProgram.programId,
         isSigner: false,
         isWritable: false,
       },
+    ],
+    programId: PROGRAM_KEYPAIR.publicKey,
+    data: buffer,
+  });
+  return await sendAndConfirmTransaction(
+    connection,
+    new Transaction().add(instruction),
+    [payer],
+  );
+}
+
+export async function update_agenda(
+  connection: Connection,
+  id: number,
+  name: string,
+  payer: Keypair,
+): Promise<string> {
+  console.log('create agenda');
+  const agenda = new Agenda(id, name, payer.publicKey);
+  const buffer = agenda.serialize(InstructionVariant.UpdateAgenda);
+
+  const [pda] = PublicKey.findProgramAddressSync(
+    [payer.publicKey.toBuffer(), new anchor.BN(agenda.id).toBuffer('le', 8)],
+    PROGRAM_KEYPAIR.publicKey,
+  );
+
+  // const [pdaCounter] = PublicKey.findProgramAddressSync(
+  //   [pda.toBuffer(), Buffer.from('event')],
+  //   PROGRAM_KEYPAIR.publicKey,
+  // );
+
+  const instruction = new TransactionInstruction({
+    keys: [
+      {
+        pubkey: payer.publicKey,
+        isSigner: true,
+        isWritable: false,
+      },
+      {
+        pubkey: pda,
+        isSigner: false,
+        isWritable: true,
+      },
+      // {
+      //   pubkey: pdaCounter,
+      //   isSigner: false,
+      //   isWritable: true,
+      // },
+      // {
+      //   pubkey: SystemProgram.programId,
+      //   isSigner: false,
+      //   isWritable: false,
+      // },
+    ],
+    programId: PROGRAM_KEYPAIR.publicKey,
+    data: buffer,
+  });
+  return await sendAndConfirmTransaction(
+    connection,
+    new Transaction().add(instruction),
+    [payer],
+  );
+}
+
+export async function delete_agenda(
+  connection: Connection,
+  id: number,
+  name: string,
+  payer: Keypair,
+): Promise<string> {
+  console.log('delete agenda');
+  const agenda = new Agenda(id, name, payer.publicKey);
+  const buffer = agenda.serialize(InstructionVariant.DeleteAgenda);
+
+  const [pda] = PublicKey.findProgramAddressSync(
+    [payer.publicKey.toBuffer(), new anchor.BN(agenda.id).toBuffer('le', 8)],
+    PROGRAM_KEYPAIR.publicKey,
+  );
+
+  // const [pdaCounter] = PublicKey.findProgramAddressSync(
+  //   [pda.toBuffer(), Buffer.from('event')],
+  //   PROGRAM_KEYPAIR.publicKey,
+  // );
+
+  const instruction = new TransactionInstruction({
+    keys: [
+      {
+        pubkey: payer.publicKey,
+        isSigner: true,
+        isWritable: false,
+      },
+      {
+        pubkey: pda,
+        isSigner: false,
+        isWritable: true,
+      },
+      // {
+      //   pubkey: pdaCounter,
+      //   isSigner: false,
+      //   isWritable: true,
+      // },
+      // {
+      //   pubkey: SystemProgram.programId,
+      //   isSigner: false,
+      //   isWritable: false,
+      // },
     ],
     programId: PROGRAM_KEYPAIR.publicKey,
     data: buffer,

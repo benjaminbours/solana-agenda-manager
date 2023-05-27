@@ -1,3 +1,4 @@
+use anchor_lang::__private::CLOSED_ACCOUNT_DISCRIMINATOR;
 use borsh::BorshSerialize;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -12,6 +13,8 @@ use solana_program::{
     sysvar::{rent::Rent, Sysvar},
 };
 use std::convert::TryInto;
+use std::io::Write;
+use std::ops::DerefMut;
 
 use crate::error::AgendaEventError;
 use crate::instruction::AgendaEventInstruction;
@@ -26,17 +29,17 @@ pub fn process_instruction(
     let instruction = AgendaEventInstruction::unpack(instruction_data)?;
 
     match instruction {
-        AgendaEventInstruction::CreateAgenda { name } => {
+        AgendaEventInstruction::CreateAgenda { id, name } => {
             // Execute program code to create a Schedule
-            create_agenda(program_id, accounts, name)
+            create_agenda(program_id, accounts, id, name)
         }
-        AgendaEventInstruction::UpdateAgenda { name } => {
+        AgendaEventInstruction::UpdateAgenda { id, name } => {
             // Execute program code to update a Schedule
-            update_agenda(program_id, accounts, name)
+            update_agenda(program_id, accounts, id, name)
         }
-        AgendaEventInstruction::DeleteAgenda { name } => {
+        AgendaEventInstruction::DeleteAgenda { id } => {
             // Execute program code to delete a note
-            delete_agenda(program_id, accounts, name)
+            delete_agenda(program_id, accounts, id)
         }
         AgendaEventInstruction::AddEvent {
             start_time,
@@ -45,8 +48,14 @@ pub fn process_instruction(
     }
 }
 
-pub fn create_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String) -> ProgramResult {
+pub fn create_agenda(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    id: u64,
+    name: String,
+) -> ProgramResult {
     msg!("Adding agenda");
+    msg!("id: {}", id);
     msg!("name: {}", name);
 
     // Get Account iterator
@@ -54,12 +63,12 @@ pub fn create_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String
     // Get accounts
     let initializer = next_account_info(account_info_iter)?;
     let pda_account = next_account_info(account_info_iter)?;
-    let pda_counter = next_account_info(account_info_iter)?;
+    // let pda_counter = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
 
     // Derive PDA and check that it matches client
     let (pda, bump_seed) = Pubkey::find_program_address(
-        &[initializer.key.as_ref(), name.as_bytes().as_ref()],
+        &[initializer.key.as_ref(), &id.to_le_bytes().as_ref()],
         program_id,
     );
 
@@ -98,7 +107,7 @@ pub fn create_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String
         ],
         &[&[
             initializer.key.as_ref(),
-            name.as_bytes().as_ref(),
+            &id.to_le_bytes().as_ref(),
             &[bump_seed],
         ]],
     )?;
@@ -117,6 +126,7 @@ pub fn create_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String
 
     account_data.discriminator = AgendaAccountState::DISCRIMINATOR.to_string();
     account_data.is_initialized = true;
+    account_data.id = id;
     account_data.name = name;
     account_data.owner = *initializer.key;
 
@@ -172,7 +182,12 @@ pub fn create_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String
     Ok(())
 }
 
-pub fn update_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String) -> ProgramResult {
+pub fn update_agenda(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    id: u64,
+    name: String,
+) -> ProgramResult {
     msg!("Updating agenda");
 
     // Get Account iterator
@@ -200,7 +215,7 @@ pub fn update_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String
 
     // Derive PDA and check that it matches client
     let (pda, _bump_seed) = Pubkey::find_program_address(
-        &[initializer.key.as_ref(), &name.as_bytes().as_ref()],
+        &[initializer.key.as_ref(), &id.to_le_bytes().as_ref()],
         program_id,
     );
 
@@ -229,7 +244,7 @@ pub fn update_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String
     msg!("Owner: {}", account_data.owner);
 
     account_data.name = name;
-    account_data.owner = *initializer.key;
+    // account_data.owner = *initializer.key;
 
     msg!("Agenda after update:");
     msg!("Name: {}", account_data.name);
@@ -242,9 +257,62 @@ pub fn update_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String
     Ok(())
 }
 
-pub fn delete_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String) -> ProgramResult {
-    msg!("Deleting schedule");
-    msg!("name: {}", name);
+pub fn delete_agenda(program_id: &Pubkey, accounts: &[AccountInfo], id: u64) -> ProgramResult {
+    msg!("Deleting agenda");
+    msg!("id: {}", id);
+    let account_info_iter = &mut accounts.iter();
+
+    let initializer = next_account_info(account_info_iter)?;
+    let account_to_close = next_account_info(account_info_iter)?;
+
+    // transfer lamports of the account to initializer
+    let dest_starting_lamports = initializer.lamports();
+    **initializer.lamports.borrow_mut() = dest_starting_lamports
+        .checked_add(account_to_close.lamports())
+        .unwrap();
+    **account_to_close.lamports.borrow_mut() = 0;
+
+    let mut data = account_to_close.try_borrow_mut_data()?;
+    for byte in data.deref_mut().iter_mut() {
+        *byte = 0;
+    }
+
+    let dst: &mut [u8] = &mut data;
+    let mut cursor = std::io::Cursor::new(dst);
+    cursor
+        .write_all(&anchor_lang::__private::CLOSED_ACCOUNT_DISCRIMINATOR)
+        .unwrap();
+
+    Ok(())
+}
+
+pub fn force_defund(program_id: &Pubkey, accounts: &[AccountInfo], id: u64) -> ProgramResult {
+    msg!("Deleting agenda");
+    msg!("id: {}", id);
+    let account_info_iter = &mut accounts.iter();
+
+    let initializer = next_account_info(account_info_iter)?;
+    let account_to_close = next_account_info(account_info_iter)?;
+
+    let data = account_to_close.try_borrow_data()?;
+
+    assert!(data.len() > 8);
+
+    let mut discriminator = [0u8; 8];
+
+    discriminator.copy_from_slice(&data[0..8]);
+
+    if discriminator != CLOSED_ACCOUNT_DISCRIMINATOR {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    // transfer lamports of the account to initializer
+    let dest_starting_lamports = initializer.lamports();
+    **initializer.lamports.borrow_mut() = dest_starting_lamports
+        .checked_add(account_to_close.lamports())
+        .unwrap();
+    **account_to_close.lamports.borrow_mut() = 0;
+
     Ok(())
 }
 

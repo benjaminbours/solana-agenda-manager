@@ -8,7 +8,8 @@ use solana_program::{
 pub struct AgendaAccountState {
     pub discriminator: String,
     pub is_initialized: bool,
-    pub name: String, // for example, BWM M3, or field number 3, whatever make sens for peoples
+    pub id: u64,
+    pub name: String,
     pub owner: Pubkey,
 }
 

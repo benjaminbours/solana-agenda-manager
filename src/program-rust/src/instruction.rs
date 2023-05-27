@@ -4,6 +4,7 @@ use solana_program::{msg, program_error::ProgramError, pubkey::Pubkey};
 /// Define the type of state stored in accounts
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub struct AgendaPayload {
+    id: u64,
     name: String,
 }
 
@@ -14,9 +15,9 @@ pub struct EventPayload {
 }
 
 pub enum AgendaEventInstruction {
-    CreateAgenda { name: String },
-    UpdateAgenda { name: String },
-    DeleteAgenda { name: String },
+    CreateAgenda { id: u64, name: String },
+    UpdateAgenda { id: u64, name: String },
+    DeleteAgenda { id: u64 },
     AddEvent { start_time: u64, end_time: u64 },
 }
 
@@ -43,15 +44,21 @@ impl AgendaEventInstruction {
         Ok(match variant {
             0 => {
                 let payload = AgendaPayload::try_from_slice(rest).unwrap();
-                Self::CreateAgenda { name: payload.name }
+                Self::CreateAgenda {
+                    id: payload.id,
+                    name: payload.name,
+                }
             }
             1 => {
                 let payload = AgendaPayload::try_from_slice(rest).unwrap();
-                Self::UpdateAgenda { name: payload.name }
+                Self::UpdateAgenda {
+                    id: payload.id,
+                    name: payload.name,
+                }
             }
             2 => {
                 let payload = AgendaPayload::try_from_slice(rest).unwrap();
-                Self::DeleteAgenda { name: payload.name }
+                Self::DeleteAgenda { id: payload.id }
             }
             3 => {
                 let payload = EventPayload::try_from_slice(rest).unwrap();

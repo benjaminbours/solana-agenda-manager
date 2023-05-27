@@ -1,10 +1,15 @@
 import bs58 from 'bs58';
 import * as borsh from '@project-serum/borsh';
+import * as anchor from '@project-serum/anchor';
 import {PublicKey} from '@solana/web3.js';
 import {PROGRAM_KEYPAIR} from '../constants';
 
 export class Agenda {
-  constructor(public name: string, public owner: PublicKey) {}
+  constructor(
+    public id: number,
+    public name: string,
+    public owner: PublicKey,
+  ) {}
 
   publicKey(): PublicKey {
     return PublicKey.findProgramAddressSync(
@@ -15,6 +20,7 @@ export class Agenda {
 
   borshInstructionSchema = borsh.struct([
     borsh.u8('variant'),
+    borsh.u64('id'),
     borsh.str('name'),
   ]);
 
@@ -22,6 +28,7 @@ export class Agenda {
   static borshAccountSchema = borsh.struct([
     borsh.str('discriminator'),
     borsh.bool('initialized'),
+    borsh.u64('id'),
     borsh.str('name'),
     borsh.publicKey('owner'),
   ]);
@@ -29,7 +36,7 @@ export class Agenda {
   serialize(instruction: number): Buffer {
     const buffer = Buffer.alloc(1000);
     this.borshInstructionSchema.encode(
-      {name: this.name, variant: instruction},
+      {id: new anchor.BN(this.id), name: this.name, variant: instruction},
       buffer,
     );
     return buffer.slice(0, this.borshInstructionSchema.getSpan(buffer));
@@ -41,9 +48,8 @@ export class Agenda {
     }
 
     try {
-      const {name, owner, initialized, discriminator} =
-        this.borshAccountSchema.decode(buffer);
-      return new Agenda(name, owner);
+      const {id, name, owner} = this.borshAccountSchema.decode(buffer);
+      return new Agenda(id.toNumber(), name, owner);
     } catch (e) {
       console.log('Deserialization error:', e);
       return null;
