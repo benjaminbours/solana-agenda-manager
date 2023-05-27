@@ -59,10 +59,15 @@ export async function getPayer(): Promise<Keypair> {
 /**
  * Create a Keypair from a secret key stored in file as bytes' array
  */
-export async function createKeypairFromFile(
-  filePath: string,
-): Promise<Keypair> {
-  const secretKeyString = await fs.readFile(filePath, {encoding: 'utf8'});
-  const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
-  return Keypair.fromSecretKey(secretKey);
+export function createKeypairFromFile(filePath: string): Keypair {
+  try {
+    const secretKeyString = fs.readFileSync(filePath, {encoding: 'utf8'});
+    const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
+    return Keypair.fromSecretKey(secretKey);
+  } catch (error) {
+    const errMsg = (error as Error).message;
+    throw new Error(
+      `Failed to read program keypair at '${filePath}' due to error: ${errMsg}. Program may need to be deployed with \`solana program deploy dist/program/helloworld.so\``,
+    );
+  }
 }

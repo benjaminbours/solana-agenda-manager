@@ -117,7 +117,7 @@ pub fn create_agenda(program_id: &Pubkey, accounts: &[AccountInfo], name: String
 
     account_data.discriminator = AgendaAccountState::DISCRIMINATOR.to_string();
     account_data.is_initialized = true;
-    account_data.name = "jean".to_owned();
+    account_data.name = name;
     account_data.owner = *initializer.key;
 
     msg!("serializing account");
@@ -309,8 +309,7 @@ pub fn create_event(
 
     msg!("Created Event Account");
 
-    let mut event_data =
-        try_from_slice_unchecked::<AgendaEvent>(&pda_event.data.borrow()).unwrap();
+    let mut event_data = try_from_slice_unchecked::<AgendaEvent>(&pda_event.data.borrow()).unwrap();
 
     msg!("checking if event account is already initialized");
     if event_data.is_initialized() {

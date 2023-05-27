@@ -1,6 +1,6 @@
 import bs58 from 'bs58';
 import * as web3 from '@solana/web3.js';
-import {PROGRAM_ID} from '../constants';
+import {PROGRAM_KEYPAIR} from '../constants';
 import {Agenda} from '../models/Agenda';
 
 export class AgendaCoordinator {
@@ -8,13 +8,13 @@ export class AgendaCoordinator {
 
   static async prefetchAccounts(connection: web3.Connection) {
     const accounts = await connection.getProgramAccounts(
-      new web3.PublicKey(PROGRAM_ID),
+      PROGRAM_KEYPAIR.publicKey,
       {
         dataSlice: {offset: 0, length: 0},
         filters: [
           {
             // memcmp stand for memory comparison => https://solanacookbook.com/guides/get-program-accounts.html#filters
-            // here we are filtering by returning only the accounts wiht our "agenda" discriminator
+            // here we are filtering by returning only the accounts with our "agenda" discriminator
             memcmp: {
               offset: 4,
               bytes: bs58.encode(Buffer.from('agenda')),

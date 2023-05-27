@@ -5,9 +5,9 @@ import {getPayer} from './utils';
 async function main() {
   // Establish connection to the cluster
   const connection = await establishConnection();
-  const payer = await getPayer();
+  // const payer = await getPayer();
   // Check if the program has been deployed
-  await checkProgram();
+  await checkProgram(connection);
 
   //   const tx = await create_agenda(payer);
   //   console.log(tx);

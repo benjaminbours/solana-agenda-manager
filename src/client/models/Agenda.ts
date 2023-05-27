@@ -1,7 +1,7 @@
 import bs58 from 'bs58';
 import * as borsh from '@project-serum/borsh';
 import {PublicKey} from '@solana/web3.js';
-import {PROGRAM_ID} from '../constants';
+import {PROGRAM_KEYPAIR} from '../constants';
 
 export class Agenda {
   constructor(public name: string, public owner: PublicKey) {}
@@ -9,7 +9,7 @@ export class Agenda {
   publicKey(): PublicKey {
     return PublicKey.findProgramAddressSync(
       [this.owner.toBuffer(), Buffer.from(this.name)],
-      new PublicKey(PROGRAM_ID),
+      PROGRAM_KEYPAIR.publicKey,
     )[0];
   }
 

@@ -12,89 +12,18 @@ import {
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
 import fs from 'mz/fs';
-import path from 'path';
 // import * as web3 from '@solana/web3.js';
-import * as borsh from 'borsh';
 import {Agenda} from './models/Agenda';
 
 import {getPayer, getRpcUrl, createKeypairFromFile} from './utils';
-
-/**
- * Connection to the network
- */
-let connection: Connection;
-
-/**
- * Keypair associated to the fees' payer
- */
-// let payer: Keypair;
-
-/**
- * Hello world's program id
- */
-let programId: PublicKey;
-
-// /**
-//  * The public key of the account we are saying hello to
-//  */
-// let greetedPubkey: PublicKey;
-
-/**
- * Path to program files
- */
-const PROGRAM_PATH = path.resolve(__dirname, '../../dist/program');
-
-const PROGRAM_NAME = 'scheduler';
-/**
- * Path to program shared object file which should be deployed on chain.
- * This file is created when running either:
- *   - `npm run build:program-c`
- *   - `npm run build:program-rust`
- */
-const PROGRAM_SO_PATH = path.join(PROGRAM_PATH, `${PROGRAM_NAME}.so`);
-
-/**
- * Path to the keypair of the deployed program.
- * This file is created when running `solana program deploy dist/program/helloworld.so`
- */
-const PROGRAM_KEYPAIR_PATH = path.join(
-  PROGRAM_PATH,
-  `${PROGRAM_NAME}-keypair.json`,
-);
-
-/**
- * The state of a greeting account managed by the hello world program
- */
-// class GreetingAccount {
-//   counter = 0;
-//   constructor(fields: {counter: number} | undefined = undefined) {
-//     if (fields) {
-//       this.counter = fields.counter;
-//     }
-//   }
-// }
-
-// /**
-//  * Borsh schema definition for greeting accounts
-//  */
-// const GreetingSchema = new Map([
-//   [GreetingAccount, {kind: 'struct', fields: [['counter', 'u32']]}],
-// ]);
-
-// /**
-//  * The expected size of each greeting account.
-//  */
-// const GREETING_SIZE = borsh.serialize(
-//   GreetingSchema,
-//   new GreetingAccount(),
-// ).length;
+import {PROGRAM_KEYPAIR, PROGRAM_SO_PATH} from './constants';
 
 /**
  * Establish a connection to the cluster
  */
 export async function establishConnection(): Promise<Connection> {
   const rpcUrl = await getRpcUrl();
-  connection = new Connection(rpcUrl, 'confirmed');
+  const connection = new Connection(rpcUrl, 'confirmed');
   const version = await connection.getVersion();
   console.log('Connection to cluster established:', rpcUrl, version);
   return connection;
@@ -141,20 +70,11 @@ export async function establishConnection(): Promise<Connection> {
 /**
  * Check if the hello world BPF program has been deployed
  */
-export async function checkProgram(): Promise<void> {
-  // Read program id from keypair file
-  try {
-    const programKeypair = await createKeypairFromFile(PROGRAM_KEYPAIR_PATH);
-    programId = programKeypair.publicKey;
-  } catch (err) {
-    const errMsg = (err as Error).message;
-    throw new Error(
-      `Failed to read program keypair at '${PROGRAM_KEYPAIR_PATH}' due to error: ${errMsg}. Program may need to be deployed with \`solana program deploy dist/program/helloworld.so\``,
-    );
-  }
-
+export async function checkProgram(connection: Connection): Promise<void> {
   // Check if the program has been deployed
-  const programInfo = await connection.getAccountInfo(programId);
+  const programInfo = await connection.getAccountInfo(
+    PROGRAM_KEYPAIR.publicKey,
+  );
   if (programInfo === null) {
     if (fs.existsSync(PROGRAM_SO_PATH)) {
       throw new Error(
@@ -166,53 +86,19 @@ export async function checkProgram(): Promise<void> {
   } else if (!programInfo.executable) {
     throw new Error(`Program is not executable`);
   }
-  console.log(`Using program ${programId.toBase58()}`);
-
-  // Derive the address (public key) of a greeting account from the program so that it's easy to find later.
-  // const GREETING_SEED = 'hello';
-  // greetedPubkey = await PublicKey.createWithSeed(
-  //   payer.publicKey,
-  //   GREETING_SEED,
-  //   programId,
-  // );
-
-  // // Check if the greeting account has already been created
-  // const greetedAccount = await connection.getAccountInfo(greetedPubkey);
-  // if (greetedAccount === null) {
-  //   console.log(
-  //     'Creating account',
-  //     greetedPubkey.toBase58(),
-  //     'to say hello to',
-  //   );
-  //   const lamports = await connection.getMinimumBalanceForRentExemption(
-  //     GREETING_SIZE,
-  //   );
-
-  //   const transaction = new Transaction().add(
-  //     SystemProgram.createAccountWithSeed({
-  //       fromPubkey: payer.publicKey,
-  //       basePubkey: payer.publicKey,
-  //       seed: GREETING_SEED,
-  //       newAccountPubkey: greetedPubkey,
-  //       lamports,
-  //       space: GREETING_SIZE,
-  //       programId,
-  //     }),
-  //   );
-  //   await sendAndConfirmTransaction(connection, transaction, [payer]);
-  // }
+  console.log(`Using program ${PROGRAM_KEYPAIR.publicKey.toBase58()}`);
 }
 
-function numToUint8Array(num: number) {
-  const arr = new Uint8Array(8);
+// function numToUint8Array(num: number) {
+//   const arr = new Uint8Array(8);
 
-  for (let i = 0; i < 8; i++) {
-    arr[i] = num % 256;
-    num = Math.floor(num / 256);
-  }
+//   for (let i = 0; i < 8; i++) {
+//     arr[i] = num % 256;
+//     num = Math.floor(num / 256);
+//   }
 
-  return arr;
-}
+//   return arr;
+// }
 
 // function uint8ArrayToNumV1(arr) {
 //   let num = 0;
@@ -265,29 +151,29 @@ const payloadSchema = new Map([
 
 // Instruction variant indexes
 enum InstructionVariant {
-  CreateSchedule = 0,
-  UpdateSchedule,
-  DeleteSchedule,
+  CreateAgenda = 0,
+  UpdateAgenda,
+  DeleteAgenda,
 }
 
-export async function create_agenda(payer: Keypair): Promise<string> {
+export async function create_agenda(
+  connection: Connection,
+  name: string,
+  payer: Keypair,
+): Promise<string> {
   console.log('create agenda');
-
-  const agenda = new Agenda('my-first-agenda-yo-2', payer.publicKey);
-  const buffer = agenda.serialize(0);
+  const agenda = new Agenda(name, payer.publicKey);
+  const buffer = agenda.serialize(InstructionVariant.CreateAgenda);
 
   const [pda] = PublicKey.findProgramAddressSync(
     [payer.publicKey.toBuffer(), Buffer.from(agenda.name)],
-    programId,
+    PROGRAM_KEYPAIR.publicKey,
   );
 
   const [pdaCounter] = PublicKey.findProgramAddressSync(
     [pda.toBuffer(), Buffer.from('event')],
-    programId,
+    PROGRAM_KEYPAIR.publicKey,
   );
-
-  console.log(payer.publicKey);
-  console.log(pda);
 
   const instruction = new TransactionInstruction({
     keys: [
@@ -312,7 +198,7 @@ export async function create_agenda(payer: Keypair): Promise<string> {
         isWritable: false,
       },
     ],
-    programId,
+    programId: PROGRAM_KEYPAIR.publicKey,
     data: buffer,
   });
   return await sendAndConfirmTransaction(
@@ -325,53 +211,53 @@ export async function create_agenda(payer: Keypair): Promise<string> {
 /**
  * Schedule
  */
-export async function create_event(payer: Keypair): Promise<string> {
-  console.log('Scheduling');
-  // Construct the payload
-  const payload = new Payload({
-    variant: InstructionVariant.CreateSchedule,
-    id: 10,
-    start_time: new Date(2023, 10, 1).getTime(), // 'ts key'
-    end_time: new Date(2023, 11, 1).getTime(), // 'ts first value'
-  });
+// export async function create_event(payer: Keypair): Promise<string> {
+//   console.log('Scheduling');
+//   // Construct the payload
+//   const payload = new Payload({
+//     variant: InstructionVariant.CreateAgenda,
+//     id: 10,
+//     start_time: new Date(2023, 10, 1).getTime(), // 'ts key'
+//     end_time: new Date(2023, 11, 1).getTime(), // 'ts first value'
+//   });
 
-  const payloadSerBuf = Buffer.from(borsh.serialize(payloadSchema, payload));
+//   const payloadSerBuf = Buffer.from(borsh.serialize(payloadSchema, payload));
 
-  const [pda] = PublicKey.findProgramAddressSync(
-    [payer.publicKey.toBuffer(), numToUint8Array(payload.id)],
-    programId,
-  );
+//   const [pda] = PublicKey.findProgramAddressSync(
+//     [payer.publicKey.toBuffer(), numToUint8Array(payload.id)],
+//     programId,
+//   );
 
-  console.log(payer.publicKey);
-  console.log(pda);
+//   console.log(payer.publicKey);
+//   console.log(pda);
 
-  const instruction = new TransactionInstruction({
-    keys: [
-      {
-        pubkey: payer.publicKey,
-        isSigner: true,
-        isWritable: false,
-      },
-      {
-        pubkey: pda,
-        isSigner: false,
-        isWritable: true,
-      },
-      {
-        pubkey: SystemProgram.programId,
-        isSigner: false,
-        isWritable: false,
-      },
-    ],
-    programId,
-    data: payloadSerBuf,
-  });
-  return await sendAndConfirmTransaction(
-    connection,
-    new Transaction().add(instruction),
-    [payer],
-  );
-}
+//   const instruction = new TransactionInstruction({
+//     keys: [
+//       {
+//         pubkey: payer.publicKey,
+//         isSigner: true,
+//         isWritable: false,
+//       },
+//       {
+//         pubkey: pda,
+//         isSigner: false,
+//         isWritable: true,
+//       },
+//       {
+//         pubkey: SystemProgram.programId,
+//         isSigner: false,
+//         isWritable: false,
+//       },
+//     ],
+//     programId,
+//     data: payloadSerBuf,
+//   });
+//   return await sendAndConfirmTransaction(
+//     connection,
+//     new Transaction().add(instruction),
+//     [payer],
+//   );
+// }
 
 // /**
 //  * Report the number of times the greeted account has been said hello to
